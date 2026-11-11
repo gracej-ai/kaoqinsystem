@@ -15,7 +15,7 @@
     for(const q of [s,r,l])if(q.error)throw q.error;
     if(!s.data.length&&!r.data.length&&!l.data.length&&hasLegacy){a.db=cached;base={staff:[],records:{},leaves:[]};ready=true;window.render();gate.style.display='none';mark('正在导入此设备的旧数据…');await push();window.render();mark('已连接 · 旧数据已导入','online');return;}
     const next={staff:s.data.map(x=>({id:x.employee_no,name:x.name,dept:x.department})),records:{},leaves:l.data.map(x=>({id:x.id,staff:x.employee_no,type:x.leave_type,from:x.date_from,to:x.date_to,reason:x.reason||'',status:x.status,dayPart:x.day_part||'full'}))};
-    for(const x of r.data){next.records[x.work_date]||={};next.records[x.work_date][x.employee_no]={in:x.clock_in||'',out:x.clock_out||'',status:x.status};}
+    for(const x of r.data){next.records[x.work_date]||={};next.records[x.work_date][x.employee_no]={in:x.clock_in||'',out:x.clock_out||'',status:x.status,periods:x.periods||[]};}
     a.db=next;base=snapshot();localStorage.setItem('attendance-app-v1',JSON.stringify(a.db));ready=true;window.render();gate.style.display='none';mark('已连接 · 自动同步','online');
   }
   async function push(){
@@ -24,7 +24,7 @@
       const ds=[...oldStaff.keys()].filter(id=>!newStaff.has(id));if(ds.length){const q=await supa.from('staff').delete().in('employee_no',ds);if(q.error)throw q.error;}
       const cs=a.db.staff.filter(x=>!oldStaff.has(x.id)||!same(x,oldStaff.get(x.id)));if(cs.length){const q=await supa.from('staff').upsert(cs.map(x=>({employee_no:x.id,name:x.name,department:x.dept})),{onConflict:'employee_no'});if(q.error)throw q.error;}
       const oldR=base.records||{},newR=a.db.records||{};for(const date of Object.keys(oldR)){const gone=Object.keys(oldR[date]||{}).filter(id=>!newR[date]?.[id]);if(gone.length){const q=await supa.from('attendance_records').delete().eq('work_date',date).in('employee_no',gone);if(q.error)throw q.error;}}
-      const cr=[];for(const [date,rows] of Object.entries(newR))for(const [id,x] of Object.entries(rows))if(!oldR[date]?.[id]||!same(x,oldR[date][id]))cr.push({work_date:date,employee_no:id,clock_in:x.in||null,clock_out:x.out||null,status:x.status||'未打卡'});
+      const cr=[];for(const [date,rows] of Object.entries(newR))for(const [id,x] of Object.entries(rows))if(!oldR[date]?.[id]||!same(x,oldR[date][id]))cr.push({work_date:date,employee_no:id,clock_in:x.in||null,clock_out:x.out||null,status:x.status||'未打卡',periods:x.periods||[]});
       if(cr.length){const q=await supa.from('attendance_records').upsert(cr,{onConflict:'work_date,employee_no'});if(q.error)throw q.error;}
       for(const x of a.db.leaves)if(!x.id)x.id=crypto.randomUUID();const oldL=new Map(base.leaves.map(x=>[x.id,x])),newL=new Map(a.db.leaves.map(x=>[x.id,x])),dl=[...oldL.keys()].filter(id=>!newL.has(id));
       if(dl.length){const q=await supa.from('leave_requests').delete().in('id',dl);if(q.error)throw q.error;}
