@@ -14,7 +14,7 @@
     const [s,r,l]=await Promise.all([supa.from('staff').select('*').order('name'),supa.from('attendance_records').select('*').order('work_date'),supa.from('leave_requests').select('*').order('created_at')]);
     for(const q of [s,r,l])if(q.error)throw q.error;
     if(!s.data.length&&!r.data.length&&!l.data.length&&hasLegacy){a.db=cached;base={staff:[],records:{},leaves:[]};ready=true;window.render();gate.style.display='none';mark('正在导入此设备的旧数据…');await push();window.render();mark('已连接 · 旧数据已导入','online');return;}
-    const next={staff:s.data.map(x=>({id:x.employee_no,name:x.name,dept:x.department})),records:{},leaves:l.data.map(x=>({id:x.id,staff:x.employee_no,type:x.leave_type,from:x.date_from,to:x.date_to,reason:x.reason||'',status:x.status}))};
+    const next={staff:s.data.map(x=>({id:x.employee_no,name:x.name,dept:x.department})),records:{},leaves:l.data.map(x=>({id:x.id,staff:x.employee_no,type:x.leave_type,from:x.date_from,to:x.date_to,reason:x.reason||'',status:x.status,dayPart:x.day_part||'full'}))};
     for(const x of r.data){next.records[x.work_date]||={};next.records[x.work_date][x.employee_no]={in:x.clock_in||'',out:x.clock_out||'',status:x.status};}
     a.db=next;base=snapshot();localStorage.setItem('attendance-app-v1',JSON.stringify(a.db));ready=true;window.render();gate.style.display='none';mark('已连接 · 自动同步','online');
   }
@@ -28,7 +28,7 @@
       if(cr.length){const q=await supa.from('attendance_records').upsert(cr,{onConflict:'work_date,employee_no'});if(q.error)throw q.error;}
       for(const x of a.db.leaves)if(!x.id)x.id=crypto.randomUUID();const oldL=new Map(base.leaves.map(x=>[x.id,x])),newL=new Map(a.db.leaves.map(x=>[x.id,x])),dl=[...oldL.keys()].filter(id=>!newL.has(id));
       if(dl.length){const q=await supa.from('leave_requests').delete().in('id',dl);if(q.error)throw q.error;}
-      const cl=a.db.leaves.filter(x=>!oldL.has(x.id)||!same(x,oldL.get(x.id)));if(cl.length){const q=await supa.from('leave_requests').upsert(cl.map(x=>({id:x.id,employee_no:x.staff,leave_type:x.type,date_from:x.from,date_to:x.to,reason:x.reason||'',status:x.status})),{onConflict:'id'});if(q.error)throw q.error;}
+      const cl=a.db.leaves.filter(x=>!oldL.has(x.id)||!same(x,oldL.get(x.id)));if(cl.length){const q=await supa.from('leave_requests').upsert(cl.map(x=>({id:x.id,employee_no:x.staff,leave_type:x.type,date_from:x.from,date_to:x.to,reason:x.reason||'',status:x.status,day_part:x.dayPart||'full'})),{onConflict:'id'});if(q.error)throw q.error;}
       base=snapshot();localStorage.setItem('attendance-app-v1',JSON.stringify(a.db));mark('已连接 · 自动同步','online');
     }catch(e){console.error(e);mark('同步失败 · 检查网络/权限','error');window.toast('云端同步失败：'+(e.message||'请检查配置'));}});return queue;
   }
